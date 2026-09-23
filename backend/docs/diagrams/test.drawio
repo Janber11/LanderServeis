@@ -1,0 +1,55 @@
+<mxfile host="65bd71144e">
+    <diagram name="ER Lussu MongoDB" id="er-lussu-1">
+        <mxGraphModel dx="1427" dy="938" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1240" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title1" value="Modelo de datos – (MongoDB)" style="text;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" width="1160" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="user1" value="&lt;b&gt;USER&lt;/b&gt;&lt;br&gt;&lt;i&gt;(Clientes y Administradores)&lt;/i&gt;&lt;hr&gt;_id (PK)&lt;br&gt;name, email, phone, role&lt;br&gt;addresses: [ { street, city... } ]&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;div&gt;&lt;font color=&quot;#666666&quot;&gt;Dato embebido 1:N dentro de User&lt;/font&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=8;spacingBottom=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="60" width="300" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="worker1" value="&lt;b&gt;WORKER&lt;/b&gt;&lt;br&gt;&lt;i&gt;(Fontaneros, Lampistas, Paletas)&lt;/i&gt;&lt;hr&gt;_id (PK)&lt;br&gt;name, phone, specialty, active" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=8;spacingBottom=8;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="820" y="60" width="300" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="incident1" value="&lt;b&gt;INCIDENT&lt;/b&gt;&lt;br&gt;&lt;i&gt;(Partes de Asistencia)&lt;/i&gt;&lt;hr&gt;_id (PK)&lt;br&gt;clientId (FK -&amp;gt; User._id)&lt;br&gt;invoiceId (FK -&amp;gt; Invoice._id)&lt;br&gt;title, description, category, status&lt;br&gt;photos: [ String ]&lt;br&gt;statusHistory: [ { status, date } ]" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=8;spacingBottom=8;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="300" width="320" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="iw1" value="&lt;b&gt;INCIDENT_WORKER&lt;/b&gt;&lt;br&gt;&lt;i&gt;(Asignaciones)&lt;/i&gt;&lt;hr&gt;_id (PK)&lt;br&gt;incidentId (FK -&amp;gt; Incident._id)&lt;br&gt;workerId (FK -&amp;gt; Worker._id)&lt;br&gt;role, assignedAt" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=8;spacingBottom=8;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="820" y="300" width="300" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="invoice1" value="&lt;b&gt;INVOICE&lt;/b&gt;&lt;br&gt;&lt;i&gt;(Presupuestos y Facturas)&lt;/i&gt;&lt;hr&gt;_id (PK)&lt;br&gt;laborCost, materialCost, totalAmount&lt;br&gt;isPaid (Boolean)" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=8;spacingBottom=8;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="640" width="300" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="user1" target="incident1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1lbl" value="Un cliente puede abrir muchas incidencias" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" parent="e1" vertex="1" connectable="0">
+                    <mxGeometry x="-0.1" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="incident1" target="iw1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="worker1" target="iw1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3lbl" value="Una incidencia puede tener varios profesionales asignados,&#xa;y un profesional puede atender varias incidencias (N:N)" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" parent="e3" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="-40" y="20" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="invoice1" target="incident1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4lbl" value="Una factura agrupa N incidencias;&#xa;una incidencia pertenece a 1 sola factura" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=10;fontColor=#666666;labelBackgroundColor=#ffffff;" parent="e4" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
