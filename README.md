@@ -3,5 +3,6 @@
 ○ Com executar el projecte:
 
   - Inicialitzar Docker:
+      Anar a la ruta ~/Escritorio/LanderServeis/backend/docker
       docker compose up -d
       Comporvar amb docker ps en mongo:latest i mongo-express:latest 
