@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   mongo:
     image: mongo:latest
     container_name: ecommerce-mongo
-    restart: always
+    restart: always #Si el contendior cau o falla per culpa de MongoDB, docker intenta inizialitzar-lo un altre cop per a que el servei segueixi funcionant. 
+                    # O també si el OS es reinicia docker inicia automaticament els contenidors al arrencar el OS
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS}
