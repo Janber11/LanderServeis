@@ -7,11 +7,7 @@ const incidentSchema = new mongoose.Schema({
   invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null },
   title: { type: String, required: true, trim: true, minlength: 5, maxlength: 120 },
   description: { type: String, trim: true, maxlength: 2000 },
-  category: {
-    type: String,
-    required: true,
-    enum: ['fontaneria', 'electricidad', 'albanileria', 'otros'],
-  },
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
   status: { type: String, enum: STATUSES, default: 'pendiente' },
   photos: {
     type: [String],
@@ -36,5 +32,6 @@ incidentSchema.pre('save', function () {
 
 incidentSchema.index({ clientId: 1, status: 1 });
 incidentSchema.index({ status: 1, createdAt: -1 });
+incidentSchema.index({ category: 1 });
 
 module.exports = mongoose.model('Incident', incidentSchema);
