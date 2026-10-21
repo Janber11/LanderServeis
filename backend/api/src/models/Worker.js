@@ -11,7 +11,7 @@ const workerSchema = new mongoose.Schema({
   specialty: {
     type: String,
     required: true,
-    enum: ['fontanero', 'lampista', 'paleta', 'otros'],
+    enum: ['fontanero', 'lampista', 'paleta', 'pintor', 'pladur', 'mampara', 'otros'],
   },
   active: { type: Boolean, default: true },
 }, { timestamps: true });
