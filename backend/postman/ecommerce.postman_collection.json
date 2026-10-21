@@ -1,0 +1,1346 @@
+{
+  "info": {
+    "name": "Ecommerce API",
+    "description": "LanderServeis - Sessió 6. Requereix l'entorn \"Ecommerce Local\" (baseUrl).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Crear categoria (correcta)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Date.now();",
+                  "pm.environment.set(\"catSlug\", \"cat-pm-\" + ts);",
+                  "pm.environment.set(\"catName\", \"Categoria Postman \" + ts);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.environment.set(\"categoryId\", pm.response.json().data._id);",
+                  "pm.test(\"active és true per defecte\", () => {",
+                  "  pm.expect(pm.response.json().data.active).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{catName}}\",\n  \"slug\": \"{{catSlug}}\",\n  \"description\": \"Creada des de Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear categoria sense nom (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és VALIDATION_ERROR\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"VALIDATION_ERROR\");",
+                  "});",
+                  "pm.test(\"details apunta al camp name\", () => {",
+                  "  const fields = pm.response.json().error.details.map(d => d.field);",
+                  "  pm.expect(fields).to.include(\"name\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"sense-nom\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear categoria amb slug duplicat (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és DUPLICATE_KEY\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"DUPLICATE_KEY\");",
+                  "});",
+                  "pm.test(\"details apunta al camp slug\", () => {",
+                  "  const fields = pm.response.json().error.details.map(d => d.field);",
+                  "  pm.expect(fields).to.include(\"slug\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Duplicada\",\n  \"slug\": \"{{catSlug}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Llistar categories (filtre, ordenació i paginació)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"Inclou pagination i respecta el límit\", () => {",
+                  "  const r = pm.response.json();",
+                  "  pm.expect(r.pagination).to.have.all.keys(\"page\", \"limit\", \"total\", \"totalPages\");",
+                  "  pm.expect(r.data.length).to.be.at.most(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories?active=true&sort=name&page=1&limit=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "true"
+                },
+                {
+                  "key": "sort",
+                  "value": "name"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Llistar categories amb sort no permès (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és INVALID_QUERY\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"INVALID_QUERY\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories?sort=passwordHash",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "sort",
+                  "value": "passwordHash"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "{{categoryId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar categoria amb id invàlid (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és INVALID_ID\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"INVALID_ID\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "abc"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar categoria inexistent (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és NOT_FOUND\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"NOT_FOUND\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/000000000000000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "000000000000000000000000"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modificar categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"Descripció canviada i camp no permès ignorat\", () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.description).to.eql(\"Descripció modificada\");",
+                  "  pm.expect(d).to.not.have.property(\"role\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Descripció modificada\",\n  \"role\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "{{categoryId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear categoria temporal (per esborrar)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"tmpSlug\", \"tmp-pm-\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.environment.set(\"categoryTmpId\", pm.response.json().data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Categoria temporal\",\n  \"slug\": \"{{tmpSlug}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar categoria (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": "pm.test(\"Status code is 204\", () => {\n  pm.response.to.have.status(204);\n});"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/{{categoryTmpId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "{{categoryTmpId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Crear usuari (correcte)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"userEmail\", \"postman.\" + Date.now() + \"@example.com\");",
+                  "pm.variables.set(\"testPassword\", \"Prova-\" + Date.now() + \"-Aa\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"No exposa passwordHash\", () => {",
+                  "  pm.expect(pm.response.text()).to.not.include(\"passwordHash\");",
+                  "});",
+                  "pm.environment.set(\"userId\", pm.response.json().data._id);",
+                  "pm.test(\"El servidor força role=client i active=true\", () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.role).to.eql(\"client\");",
+                  "  pm.expect(d.active).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Usuari Postman\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"admin\",\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear usuari amb email duplicat (409)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"testPassword\", \"Prova-\" + Date.now() + \"-Aa\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és DUPLICATE_KEY\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"DUPLICATE_KEY\");",
+                  "});",
+                  "pm.test(\"details apunta al camp email\", () => {",
+                  "  const fields = pm.response.json().error.details.map(d => d.field);",
+                  "  pm.expect(fields).to.include(\"email\");",
+                  "});",
+                  "pm.test(\"No exposa passwordHash\", () => {",
+                  "  pm.expect(pm.response.text()).to.not.include(\"passwordHash\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Altre Usuari\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear usuari amb contrasenya curta (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és VALIDATION_ERROR\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"VALIDATION_ERROR\");",
+                  "});",
+                  "pm.test(\"details apunta al camp password\", () => {",
+                  "  const fields = pm.response.json().error.details.map(d => d.field);",
+                  "  pm.expect(fields).to.include(\"password\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Usuari Curt\",\n  \"email\": \"curt.{{$timestamp}}@example.com\",\n  \"password\": \"corta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Llistar usuaris (filtre, ordenació i paginació)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"No exposa passwordHash\", () => {",
+                  "  pm.expect(pm.response.text()).to.not.include(\"passwordHash\");",
+                  "});",
+                  "pm.test(\"Inclou pagination i respecta el límit\", () => {",
+                  "  const r = pm.response.json();",
+                  "  pm.expect(r.pagination.limit).to.eql(5);",
+                  "  pm.expect(r.data.length).to.be.at.most(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users?active=true&sort=-createdAt&page=1&limit=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "true"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar usuari",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"No exposa passwordHash\", () => {",
+                  "  pm.expect(pm.response.text()).to.not.include(\"passwordHash\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar usuari inexistent (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és NOT_FOUND\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"NOT_FOUND\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/000000000000000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "000000000000000000000000"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modificar usuari (camps no permesos ignorats)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"No exposa passwordHash\", () => {",
+                  "  pm.expect(pm.response.text()).to.not.include(\"passwordHash\");",
+                  "});",
+                  "pm.test(\"Només canvia el nom\", () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.name).to.eql(\"Nom Modificat\");",
+                  "  pm.expect(d.email).to.eql(pm.environment.get(\"userEmail\"));",
+                  "  pm.expect(d.role).to.eql(\"client\");",
+                  "  pm.expect(d.active).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nom Modificat\",\n  \"email\": \"altre@example.com\",\n  \"role\": \"admin\",\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Desactivar usuari (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": "pm.test(\"Status code is 204\", () => {\n  pm.response.to.have.status(204);\n});"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar usuari desactivat (active=false)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"Baixa lògica: active és false\", () => {",
+                  "  pm.expect(pm.response.json().data.active).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Incidents",
+      "item": [
+        {
+          "name": "Crear incidència (correcta)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.environment.set(\"incidentId\", pm.response.json().data._id);",
+                  "pm.test(\"category ve amb populate\", () => {",
+                  "  pm.expect(pm.response.json().data.category).to.have.property(\"name\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{userId}}\",\n  \"title\": \"Fuga d'aigua des de Postman\",\n  \"description\": \"Degota el sifó del lavabo\",\n  \"category\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/incidents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear incidència amb categoria inexistent (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és VALIDATION_ERROR\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"VALIDATION_ERROR\");",
+                  "});",
+                  "pm.test(\"details apunta al camp category\", () => {",
+                  "  const fields = pm.response.json().error.details.map(d => d.field);",
+                  "  pm.expect(fields).to.include(\"category\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{userId}}\",\n  \"title\": \"Categoria que no existeix\",\n  \"category\": \"000000000000000000000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/incidents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Llistar incidències per categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"Hi ha almenys una incidència\", () => {",
+                  "  pm.expect(pm.response.json().results).to.be.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/incidents?category={{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar incidència",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modificar incidència (canvi d'estat)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és true\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(true);",
+                  "});",
+                  "pm.test(\"statusHistory té 2 entrades\", () => {",
+                  "  pm.expect(pm.response.json().data.statusHistory).to.have.lengthOf(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"en_curso\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar categoria en ús (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "pm.test(\"success és false\", () => {",
+                  "  pm.expect(pm.response.json().success).to.eql(false);",
+                  "});",
+                  "pm.test(\"error.code és CATEGORY_IN_USE\", () => {",
+                  "  pm.expect(pm.response.json().error.code).to.eql(\"CATEGORY_IN_USE\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "{{categoryId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar incidència (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": "pm.test(\"Status code is 204\", () => {\n  pm.response.to.have.status(204);\n});"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

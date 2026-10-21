@@ -9,6 +9,7 @@ require('./models/IncidentWorker');
 require('./models/Category');
 const incidentRoutes = require('./routes/incidentRoutes'); // Importem les rutes
 const categoryRoutes = require('./routes/categoryRoutes');
+const userRoutes = require('./routes/userRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -21,6 +22,7 @@ app.get('/', (req, res) => res.send('API Ecommerce en marxa 🚀'));
 // Muntem les rutes d'incidències sota el prefix '/api/incidents'
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/users', userRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
