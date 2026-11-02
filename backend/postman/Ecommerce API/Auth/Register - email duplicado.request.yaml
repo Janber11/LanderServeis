@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"name":"Auth Postman","email":"{{authEmail}}","password":"{{authPassword}}"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 409', () => pm.response.to.have.status(409));
+      pm.test('error.code = DUPLICATE_KEY', () => pm.expect(pm.response.json().error.code).to.eql('DUPLICATE_KEY'));
+    language: text/javascript
+order: 2000

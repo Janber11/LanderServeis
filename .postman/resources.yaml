@@ -1,0 +1,10 @@
+# Use this workspace to collaborate
+workspace:
+  id: 1b06f9a1-7ada-4b28-82e1-f68c2a196b61
+
+localResources:
+  collections:
+    - ../backend/postman/ecommerce.postman_collection.json
+    - ../backend/postman/Ecommerce API
+  environments:
+    - ../backend/postman/Ecommerce Local.environment.yaml

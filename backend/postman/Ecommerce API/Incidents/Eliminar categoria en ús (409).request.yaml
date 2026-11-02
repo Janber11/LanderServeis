@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{baseUrl}}/api/categories/{{categoryId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 409", () => {
+        pm.response.to.have.status(409);
+      });
+      pm.test("Response is JSON", () => {
+        pm.response.to.be.json;
+      });
+      pm.test("success és false", () => {
+        pm.expect(pm.response.json().success).to.eql(false);
+      });
+      pm.test("error.code és CATEGORY_IN_USE", () => {
+        pm.expect(pm.response.json().error.code).to.eql("CATEGORY_IN_USE");
+      });
+    language: text/javascript
+order: 6000

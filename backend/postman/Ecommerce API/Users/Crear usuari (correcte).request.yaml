@@ -1,0 +1,43 @@
+$kind: http-request
+url: "{{baseUrl}}/api/users"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Usuari Postman",
+      "email": "{{userEmail}}",
+      "password": "{{testPassword}}",
+      "role": "admin",
+      "active": false
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      pm.environment.set("userEmail", "postman." + Date.now() + "@example.com");
+      pm.variables.set("testPassword", "Prova-" + Date.now() + "-Aa");
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 201", () => {
+        pm.response.to.have.status(201);
+      });
+      pm.test("Response is JSON", () => {
+        pm.response.to.be.json;
+      });
+      pm.test("success és true", () => {
+        pm.expect(pm.response.json().success).to.eql(true);
+      });
+      pm.test("No exposa passwordHash", () => {
+        pm.expect(pm.response.text()).to.not.include("passwordHash");
+      });
+      pm.environment.set("userId", pm.response.json().data._id);
+      pm.test("El servidor força role=client i active=true", () => {
+        const d = pm.response.json().data;
+        pm.expect(d.role).to.eql("client");
+        pm.expect(d.active).to.eql(true);
+      });
+    language: text/javascript
+order: 1000

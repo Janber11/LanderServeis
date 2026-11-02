@@ -4,7 +4,7 @@ Plataforma perquè els clients contactin amb el seu equip de professionals de la
 (lampistes, fontaners, paletes...) i gestionin incidències.
 
 ## Tecnologies
-React, Node.js/Express, MongoDB (Mongoose), Docker, bcrypt, Postman
+React, Node.js/Express, MongoDB (Mongoose), Docker, bcrypt, JSON Web Token (JWT), Postman
 
 ## Autor
 Jan Bertran Sánchez
@@ -43,12 +43,22 @@ npm install
 cp .env.example .env
 ```
 
-Editar el fitxer `.env` creat a `api/` i posar-hi la contrasenya de Mongo:
+Editar el fitxer `.env` creat a `api/` i posar-hi la contrasenya de Mongo i un secret per als tokens:
 
 ```
 PORT=3000
 MONGO_URI=mongodb://admin:<contrasenya>@localhost:27017/ecommerce?authSource=admin
+JWT_SECRET=<secret llarg i aleatori>
+JWT_EXPIRES_IN=1h
 ```
+
+Es pot generar un secret aleatori amb:
+
+```bash
+openssl rand -base64 48
+```
+
+`JWT_SECRET` és obligatori i ha de tenir **com a mínim 32 caràcters**: si falta, l'API no arrenca. No s'ha de pujar mai a Git (el `.env` està ignorat; només es puja `.env.example`, sense valors reals).
 
 Arrencar en mode desenvolupament:
 
@@ -57,6 +67,7 @@ npm run dev
 ```
 
 Ha de mostrar `Servidor escoltant al port 3000` i `MongoDB connectat correctament`.
+Si es canvia el `.env`, cal aturar nodemon (Ctrl+C) i tornar-lo a arrencar.
 
 ## Estructura del backend
 
@@ -73,9 +84,9 @@ backend/
 │   │   │   ├── Incident.js              # Incidències (entitat central)
 │   │   │   ├── IncidentWorker.js        # Assignacions N:N incidència-professional
 │   │   │   └── Invoice.js               # Pressupostos i factures
-│   │   ├── routes/                      # categoryRoutes, userRoutes, incidentRoutes
+│   │   ├── routes/                      # category, user, incident i authRoutes
 │   │   ├── controllers/                 # Part HTTP (req/res, codis d'estat)
-│   │   ├── services/                    # Lògica de negoci
+│   │   ├── services/                    # Lògica de negoci (inclou authService)
 │   │   ├── middleware/errorHandler.js   # notFound + gestor global d'errors
 │   │   ├── utils/
 │   │   │   ├── AppError.js              # Error amb codi HTTP i codi intern
@@ -119,6 +130,7 @@ A `index.js` les rutes es munten sota un prefix, i el middleware d'errors va **d
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
 app.use(notFound);
 app.use(errorHandler);
 ```
@@ -159,6 +171,7 @@ Errors: sempre el mateix format i sense traces internes.
 | 400 | `INVALID_ID` | Id amb format incorrecte |
 | 400 | `INVALID_QUERY` | Paràmetres de consulta no vàlids (`page`, `limit`, `sort`, `active`...) |
 | 400 | `INVALID_JSON` | Cos de la petició que no és JSON |
+| 401 | `INVALID_CREDENTIALS` | Login amb email o contrasenya incorrectes (vegeu l'API d'autenticació) |
 | 404 | `NOT_FOUND` | Recurs inexistent |
 | 404 | `ROUTE_NOT_FOUND` | Ruta inexistent |
 | 409 | `DUPLICATE_KEY` | Email o slug duplicat (índex únic) |
@@ -188,6 +201,70 @@ curl -i "http://localhost:3000/api/categories?name=fontan"
 curl -i "http://localhost:3000/api/users?name=anna"
 curl -i "http://localhost:3000/api/users?sort=-createdAt&page=2&limit=5"
 ```
+
+## API d'autenticació (registre i login)
+
+Base URL: `http://localhost:3000/api/auth`
+
+| Mètode | Ruta | Descripció | Codis |
+|---|---|---|---|
+| POST | `/api/auth/register` | Registrar un client nou | 201, 409, 422 |
+| POST | `/api/auth/login` | Iniciar sessió i obtenir un token JWT | 200, 401, 422 |
+
+L'enunciat de la Sessió 7 parla de `Usuari.js`, `usuariController`, `usuariServices` i `usuariRoutes`. En aquest projecte
+es **reutilitza** el model `User.js` (ja té `passwordHash`) i els fitxers nous són `authController.js`, `authService.js` i `authRoutes.js`.
+
+### Registre (POST `/api/auth/register`)
+
+Accepta els mateixos camps que la creació d'usuaris (`name`, `email`, `password`, `phone`, `addresses`) i reutilitza la lògica de `userService`:
+`role=client` i `active=true` els fixa el servidor, i la contrasenya es guarda amb bcrypt (12 rondes). **No retorna cap token**: el
+registre no inicia la sessió; cal fer login.
+
+```bash
+curl -i -X POST "http://localhost:3000/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Marta Auth","email":"marta.auth@example.com","password":"ClaveDePrueba-2026"}'
+```
+
+Resposta esperada: `201 Created` amb l'usuari, sense `passwordHash`. Un email repetit retorna `409 DUPLICATE_KEY` i una contrasenya curta `422 VALIDATION_ERROR`.
+
+### Login (POST `/api/auth/login`)
+
+```bash
+curl -i -X POST "http://localhost:3000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"marta.auth@example.com","password":"ClaveDePrueba-2026"}'
+```
+
+Resposta esperada: `200 OK`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "token": "<jwt>",
+    "expiresIn": 3600,
+    "user": { "_id": "...", "name": "Marta Auth", "email": "marta.auth@example.com", "role": "client", "active": true }
+  }
+}
+```
+
+`expiresIn` són els segons de validesa del token. Els errors possibles:
+
+| Cas | Resposta |
+|---|---|
+| Falta `email` o `password` (o no són text) | `422 VALIDATION_ERROR` amb un error per camp a `details` |
+| Email inexistent, contrasenya incorrecta, usuari desactivat o usuari sense hash | `401 INVALID_CREDENTIALS`, sempre amb el mateix missatge |
+
+### Seguretat de l'autenticació
+
+- **Missatge genèric**: tant si l'email no existeix com si la contrasenya és incorrecta o l'usuari està desactivat, la resposta és idèntica, de manera que no es pot esbrinar quins emails estan registrats.
+- **Temps constant**: si l'usuari no existeix, igualment es fa una comparació bcrypt contra un hash fals, perquè el temps de resposta no delati l'existència de l'email.
+- **Sense injecció NoSQL**: `email` i `password` han de ser text; un objecte com `{"$ne": null}` retorna `422` abans de consultar la base de dades.
+- **`passwordHash`**: té `select: false`, per això el login el demana explícitament (`.select('+passwordHash')`), i mai surt a la resposta.
+- **Token**: signat amb **HS256** i el secret `JWT_SECRET`; caduca segons `JWT_EXPIRES_IN` (1 hora per defecte). El payload és mínim: `sub` (id de l'usuari) i `role`, sense email ni dades personals.
+- **Secret obligatori**: si `JWT_SECRET` falta o té menys de 32 caràcters, l'API no arrenca.
+- L'email es normalitza (espais fora i minúscules) igual que a l'esquema.
 
 ## API de categories
 
@@ -240,9 +317,10 @@ El PUT només modifica `name`, `slug`, `description` i `active`. Si la categoria
 
 Base URL: `http://localhost:3000/api/users`
 
-> **Atenció:** fins que s'implementin JWT i RBAC, aquests endpoints només s'han d'executar
-> en local amb dades fictícies. No s'han de desplegar públicament. El registre públic es
-> traslladarà a `/api/auth/register` i la gestió administrativa quedarà protegida.
+> **Atenció:** fins que s'implementi el control d'accés per rols (RBAC), aquests endpoints **no estan protegits**
+> (encara que ja existeixi el login amb JWT, cap ruta de `/api/users` comprova el token). Només s'han d'executar
+> en local amb dades fictícies i no s'han de desplegar públicament. El registre públic és `/api/auth/register`
+> i la gestió administrativa quedarà protegida.
 
 | Mètode | Ruta | Descripció | Codis |
 |---|---|---|---|
@@ -276,10 +354,10 @@ curl -i -X POST http://localhost:3000/api/users \
 
 ### Seguretat de les contrasenyes i dels camps
 
-- La contrasenya es transforma amb **bcrypt** (12 rondes) i només es guarda el hash a `passwordHash`.
+- La contrasenya es transforma amb **bcrypt** (12 rondes) i només es guarda el hash a `passwordHash`. El hash comença per `$2b$12$` i és diferent per a cada usuari, encara que tinguin la mateixa contrasenya, gràcies a la **sal** que bcrypt afegeix.
 - `passwordHash` té `select: false` al model (cap consulta el retorna per defecte) i s'esborra a `toJSON`. Cap resposta l'exposa.
 - El servidor assigna `role=client` i `active=true`. El cos de la petició **no pot** fixar `role`, `active` ni `passwordHash`: s'ignoren.
-- El PUT només accepta `name`, `phone` i `addresses`. El canvi d'email i de contrasenya es farà amb un flux propi quan hi hagi autenticació.
+- El PUT només accepta `name`, `phone` i `addresses`. El canvi d'email i de contrasenya es farà amb un flux propi.
 - La baixa és **lògica**: l'usuari no s'esborra, només es marca `active=false`.
 
 ## API d'incidències
@@ -378,12 +456,14 @@ Retorna `204`. Esborra la incidència i, en cascada, les seves assignacions de p
 
 A `backend/postman/` hi ha la col·lecció i l'entorn:
 
-- `ecommerce.postman_collection.json`: col·lecció «Ecommerce API», amb les carpetes `Categories`, `Users` i `Incidents` (aquesta última fa de «Products» de l'enunciat). Té 27 peticions amb comprovacions automàtiques.
+- `ecommerce.postman_collection.json`: col·lecció «Ecommerce API», amb les carpetes `Categories`, `Users`, `Incidents` (aquesta última fa de «Products» de l'enunciat) i `Auth`. Té 35 peticions amb comprovacions automàtiques (128 comprovacions).
 - `ecommerce-local.postman_environment.json`: entorn «Ecommerce Local» amb `baseUrl=http://localhost:3000`.
+
+La carpeta `Auth` té 8 peticions: registre correcte, email duplicat, contrasenya curta, login correcte, contrasenya incorrecta, email inexistent, cos buit i objecte en l'email (injecció NoSQL). S'han d'executar **en ordre**: la primera genera l'email i la contrasenya que usen les altres.
 
 **Importar-les:** Postman → *Import* → seleccionar els dos fitxers → triar l'entorn **Ecommerce Local** (a dalt a la dreta) → *Run collection*.
 
-Les peticions guarden soles els ids (`categoryId`, `userId`, `incidentId`) a l'entorn i generen emails i slugs únics amb `Date.now()`, de manera que la col·lecció es pot executar tantes vegades com es vulgui. Les contrasenyes de prova es generen en cada execució i no hi ha cap secret als fitxers.
+Les peticions guarden soles els ids (`categoryId`, `userId`, `incidentId`) i les credencials de prova (`authEmail`, `authPassword`) a l'entorn i generen emails i slugs únics amb `Date.now()`, de manera que la col·lecció es pot executar tantes vegades com es vulgui. Les contrasenyes de prova es generen en cada execució i no hi ha cap secret als fitxers. **No s'ha d'exportar l'entorn des de Postman després d'executar-lo**, perquè s'hi guardarien aquests valors.
 
 Sense obrir Postman, des de la línia d'ordres (amb l'API en marxa):
 
@@ -392,6 +472,8 @@ cd ~/Escritorio/LanderServeis/backend
 npx --yes newman run postman/ecommerce.postman_collection.json \
   -e postman/ecommerce-local.postman_environment.json
 ```
+
+Resultat esperat: 35 peticions, 0 errors.
 
 ## Notes de disseny
 
@@ -413,13 +495,20 @@ npx --yes newman run postman/ecommerce.postman_collection.json \
   s'accepten textos, de manera que no es poden injectar operadors de MongoDB.
 - **Errors centralitzats**: els serveis llancen `AppError` i el middleware és l'únic lloc que decideix
   el codi HTTP i el format. Els errors inesperats només es registren a la consola del servidor.
+- **Registre sense token**: el registre només crea el compte i el login és qui crea la sessió, perquè
+  cada endpoint tingui una única responsabilitat.
+- **Registre reutilitzat**: `authService.register` crida `userService.createUser`, així la lògica de
+  contrasenyes i camps permesos només existeix en un lloc.
 - **Dades de prova**: encara no hi ha endpoints de professionals. Per provar-los cal crear-los amb un
   script que usi el model `Worker` (veure `src/test-validation.js` com a exemple de com carregar els models).
 
 ## Pendent
 
-- Endpoints (ruta, controlador i servei) per a `Worker`, `Invoice` i `IncidentWorker`.
-- Login amb JWT i control d'accés per rols (RBAC); després protegir `/api/users`.
+- Middleware `auth` que verifiqui el token JWT i `GET /api/auth/me` (opcional).
+- Control d'accés per rols (RBAC); després protegir `/api/users` i la resta de rutes.
+- Límit d'intents de login (`express-rate-limit`).
 - Canvi d'email i de contrasenya amb un flux propi.
+- Endpoints (ruta, controlador i servei) per a `Worker`, `Invoice` i `IncidentWorker`.
 - Paginació al llistat d'incidències.
+- Revisar les vulnerabilitats de `npm audit` (`npm audit fix` sense `--force`).
 - Frontend (React).

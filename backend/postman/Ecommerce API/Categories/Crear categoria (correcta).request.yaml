@@ -1,0 +1,37 @@
+$kind: http-request
+url: "{{baseUrl}}/api/categories"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "{{catName}}",
+      "slug": "{{catSlug}}",
+      "description": "Creada des de Postman"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      const ts = Date.now();
+      pm.environment.set("catSlug", "cat-pm-" + ts);
+      pm.environment.set("catName", "Categoria Postman " + ts);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 201", () => {
+        pm.response.to.have.status(201);
+      });
+      pm.test("Response is JSON", () => {
+        pm.response.to.be.json;
+      });
+      pm.test("success és true", () => {
+        pm.expect(pm.response.json().success).to.eql(true);
+      });
+      pm.environment.set("categoryId", pm.response.json().data._id);
+      pm.test("active és true per defecte", () => {
+        pm.expect(pm.response.json().data.active).to.eql(true);
+      });
+    language: text/javascript
+order: 1000

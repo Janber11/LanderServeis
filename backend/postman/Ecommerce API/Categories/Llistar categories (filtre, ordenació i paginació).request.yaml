@@ -1,0 +1,27 @@
+$kind: http-request
+url: "{{baseUrl}}/api/categories?active=true&sort=name&page=1&limit=5"
+method: GET
+queryParams:
+  active: "true"
+  sort: name
+  page: "1"
+  limit: "5"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 200", () => {
+        pm.response.to.have.status(200);
+      });
+      pm.test("Response is JSON", () => {
+        pm.response.to.be.json;
+      });
+      pm.test("success és true", () => {
+        pm.expect(pm.response.json().success).to.eql(true);
+      });
+      pm.test("Inclou pagination i respecta el límit", () => {
+        const r = pm.response.json();
+        pm.expect(r.pagination).to.have.all.keys("page", "limit", "total", "totalPages");
+        pm.expect(r.data.length).to.be.at.most(5);
+      });
+    language: text/javascript
+order: 4000

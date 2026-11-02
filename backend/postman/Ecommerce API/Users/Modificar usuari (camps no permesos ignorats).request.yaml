@@ -1,0 +1,38 @@
+$kind: http-request
+url: "{{baseUrl}}/api/users/{{userId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Nom Modificat",
+      "email": "altre@example.com",
+      "role": "admin",
+      "active": false
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 200", () => {
+        pm.response.to.have.status(200);
+      });
+      pm.test("Response is JSON", () => {
+        pm.response.to.be.json;
+      });
+      pm.test("success és true", () => {
+        pm.expect(pm.response.json().success).to.eql(true);
+      });
+      pm.test("No exposa passwordHash", () => {
+        pm.expect(pm.response.text()).to.not.include("passwordHash");
+      });
+      pm.test("Només canvia el nom", () => {
+        const d = pm.response.json().data;
+        pm.expect(d.name).to.eql("Nom Modificat");
+        pm.expect(d.email).to.eql(pm.environment.get("userEmail"));
+        pm.expect(d.role).to.eql("client");
+        pm.expect(d.active).to.eql(true);
+      });
+    language: text/javascript
+order: 7000

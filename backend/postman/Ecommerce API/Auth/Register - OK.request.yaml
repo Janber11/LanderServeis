@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"name":"Auth Postman","email":"{{authEmail}}","password":"{{authPassword}}"}'
+scripts:
+  - type: beforeRequest
+    code: |-
+      pm.environment.set('authEmail', 'auth.' + Date.now() + '@example.com');
+      pm.environment.set('authPassword', 'Clave-' + Date.now() + '-Prueba');
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      pm.test('role=client y active=true', () => { const u = pm.response.json().data; pm.expect(u.role).to.eql('client'); pm.expect(u.active).to.eql(true); });
+      pm.test('No expone passwordHash', () => pm.expect(pm.response.text()).to.not.include('passwordHash'));
+    language: text/javascript
+order: 1000

@@ -1,0 +1,33 @@
+$kind: http-request
+url: "{{baseUrl}}/api/categories"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Duplicada",
+      "slug": "{{catSlug}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 409", () => {
+        pm.response.to.have.status(409);
+      });
+      pm.test("Response is JSON", () => {
+        pm.response.to.be.json;
+      });
+      pm.test("success és false", () => {
+        pm.expect(pm.response.json().success).to.eql(false);
+      });
+      pm.test("error.code és DUPLICATE_KEY", () => {
+        pm.expect(pm.response.json().error.code).to.eql("DUPLICATE_KEY");
+      });
+      pm.test("details apunta al camp slug", () => {
+        const fields = pm.response.json().error.details.map(d => d.field);
+        pm.expect(fields).to.include("slug");
+      });
+    language: text/javascript
+order: 3000

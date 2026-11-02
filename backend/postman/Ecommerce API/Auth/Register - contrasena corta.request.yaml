@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"name":"Auth Corta","email":"corta.{{$timestamp}}@example.com","password":"corta"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 422', () => pm.response.to.have.status(422));
+      pm.test('error.code = VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));
+      pm.test('error en el campo password', () => pm.expect(pm.response.json().error.details.map(d => d.field)).to.include('password'));
+    language: text/javascript
+order: 3000

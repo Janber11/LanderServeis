@@ -10,6 +10,7 @@ require('./models/Category');
 const incidentRoutes = require('./routes/incidentRoutes'); // Importem les rutes
 const categoryRoutes = require('./routes/categoryRoutes');
 const userRoutes = require('./routes/userRoutes');
+const authRoutes = require('./routes/authRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -23,6 +24,7 @@ app.get('/', (req, res) => res.send('API Ecommerce en marxa 🚀'));
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

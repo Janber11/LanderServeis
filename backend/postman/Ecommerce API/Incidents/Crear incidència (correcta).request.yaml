@@ -1,0 +1,32 @@
+$kind: http-request
+url: "{{baseUrl}}/api/incidents"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "clientId": "{{userId}}",
+      "title": "Fuga d'aigua des de Postman",
+      "description": "Degota el sifó del lavabo",
+      "category": "{{categoryId}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 201", () => {
+        pm.response.to.have.status(201);
+      });
+      pm.test("Response is JSON", () => {
+        pm.response.to.be.json;
+      });
+      pm.test("success és true", () => {
+        pm.expect(pm.response.json().success).to.eql(true);
+      });
+      pm.environment.set("incidentId", pm.response.json().data._id);
+      pm.test("category ve amb populate", () => {
+        pm.expect(pm.response.json().data.category).to.have.property("name");
+      });
+    language: text/javascript
+order: 1000
