@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/me"
+method: GET
+headers:
+  Authorization: Bearer abc.def.ghi
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('401', () => pm.response.to.have.status(401));
+      pm.test('INVALID_TOKEN', () => pm.expect(pm.response.json().error.code).to.eql('INVALID_TOKEN'));
+    language: text/javascript
+order: 4000

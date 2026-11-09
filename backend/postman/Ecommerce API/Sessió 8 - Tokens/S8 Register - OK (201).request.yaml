@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{\"name\":\"Usuari Sessio8\",\"email\":\"{{s8Email}}\",\"password\":\"{{s8Password}}\"}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      const id = Date.now();
+      pm.environment.set('s8Email', 's8.' + id + '@example.com');
+      pm.environment.set('s8Password', 'Clave-' + id + '-Prova');
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      pm.test('No expone passwordHash', () => pm.expect(pm.response.text()).to.not.include('passwordHash'));
+    language: text/javascript
+order: 1000

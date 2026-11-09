@@ -7,6 +7,7 @@ require('./models/Invoice');
 require('./models/Incident');
 require('./models/IncidentWorker');
 require('./models/Category');
+require('./models/RefreshToken');
 const incidentRoutes = require('./routes/incidentRoutes'); // Importem les rutes
 const categoryRoutes = require('./routes/categoryRoutes');
 const userRoutes = require('./routes/userRoutes');

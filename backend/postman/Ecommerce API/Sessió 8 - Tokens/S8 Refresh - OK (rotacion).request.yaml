@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/refresh"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{\"refreshToken\":\"{{refreshToken}}\"}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      pm.environment.set('refreshTokenOld', pm.environment.get('refreshToken'));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('El refresh token nuevo es distinto', () => pm.expect(d.refreshToken).to.not.eql(pm.environment.get('refreshTokenOld')));
+      pm.environment.set('accessToken', d.accessToken);
+      pm.environment.set('refreshToken', d.refreshToken);
+    language: text/javascript
+order: 6000

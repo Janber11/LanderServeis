@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{\"email\":\"{{s8Email}}\",\"password\":\"{{s8Password}}\"}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('Devuelve accessToken y refreshToken', () => { pm.expect(d.accessToken).to.be.a('string'); pm.expect(d.refreshToken).to.be.a('string'); });
+      pm.test('expiresIn = 900 (15 min)', () => pm.expect(d.expiresIn).to.eql(900));
+      pm.test('Sin passwordHash', () => pm.expect(pm.response.text()).to.not.include('passwordHash'));
+      pm.environment.set('accessToken', d.accessToken);
+      pm.environment.set('refreshToken', d.refreshToken);
+    language: text/javascript
+order: 2000

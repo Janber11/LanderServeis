@@ -4,7 +4,7 @@ Plataforma perquè els clients contactin amb el seu equip de professionals de la
 (lampistes, fontaners, paletes...) i gestionin incidències.
 
 ## Tecnologies
-React, Node.js/Express, MongoDB (Mongoose), Docker, bcrypt, JSON Web Token (JWT), Postman
+React, Node.js/Express, MongoDB (Mongoose), Docker, bcrypt, JSON Web Token (JWT, access + refresh token), Postman
 
 ## Autor
 Jan Bertran Sánchez
@@ -43,22 +43,24 @@ npm install
 cp .env.example .env
 ```
 
-Editar el fitxer `.env` creat a `api/` i posar-hi la contrasenya de Mongo i un secret per als tokens:
+Editar el fitxer `.env` creat a `api/` i posar-hi la contrasenya de Mongo i els dos secrets dels tokens:
 
 ```
 PORT=3000
 MONGO_URI=mongodb://admin:<contrasenya>@localhost:27017/ecommerce?authSource=admin
-JWT_SECRET=<secret llarg i aleatori>
-JWT_EXPIRES_IN=1h
+JWT_SECRET=<secret llarg i aleatori per als access tokens>
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=<un altre secret diferent per als refresh tokens>
+JWT_REFRESH_EXPIRES_IN=7d
 ```
 
-Es pot generar un secret aleatori amb:
+Es pot generar cada secret aleatori amb:
 
 ```bash
 openssl rand -base64 48
 ```
 
-`JWT_SECRET` és obligatori i ha de tenir **com a mínim 32 caràcters**: si falta, l'API no arrenca. No s'ha de pujar mai a Git (el `.env` està ignorat; només es puja `.env.example`, sense valors reals).
+`JWT_SECRET` i `JWT_REFRESH_SECRET` són obligatoris, han de tenir **com a mínim 32 caràcters** i han de ser **diferents entre ells**: si falta algun, és massa curt o són iguals, l'API no arrenca. No s'han de pujar mai a Git (el `.env` està ignorat; només es puja `.env.example`, sense valors reals).
 
 Arrencar en mode desenvolupament:
 
@@ -83,11 +85,14 @@ backend/
 │   │   │   ├── Worker.js                # Professionals
 │   │   │   ├── Incident.js              # Incidències (entitat central)
 │   │   │   ├── IncidentWorker.js        # Assignacions N:N incidència-professional
-│   │   │   └── Invoice.js               # Pressupostos i factures
+│   │   │   ├── Invoice.js               # Pressupostos i factures
+│   │   │   └── RefreshToken.js          # Hash dels refresh tokens (rotació i TTL)
 │   │   ├── routes/                      # category, user, incident i authRoutes
 │   │   ├── controllers/                 # Part HTTP (req/res, codis d'estat)
-│   │   ├── services/                    # Lògica de negoci (inclou authService)
-│   │   ├── middleware/errorHandler.js   # notFound + gestor global d'errors
+│   │   ├── services/                    # Lògica de negoci (authService, tokenService...)
+│   │   ├── middleware/
+│   │   │   ├── errorHandler.js          # notFound + gestor global d'errors
+│   │   │   └── auth.js                  # authenticate: valida l'access token (Bearer)
 │   │   ├── utils/
 │   │   │   ├── AppError.js              # Error amb codi HTTP i codi intern
 │   │   │   ├── asyncHandler.js          # Envolta els controladors async
@@ -101,9 +106,11 @@ backend/
 │   └── package.json
 ├── docker/
 │   └── docker-compose.yml
-└── postman/
-    ├── ecommerce.postman_collection.json
-    └── ecommerce-local.postman_environment.json
+├── postman/
+│   ├── Ecommerce API/                   # Col·lecció (una carpeta per grup i un .yaml per petició)
+│   └── Ecommerce Local.environment.yaml
+└── scripts/
+    └── validate-auth.sh                 # Validació de l'autenticació amb curl (Sessió 8)
 ```
 
 ## Arquitectura en capes
@@ -122,6 +129,7 @@ Request HTTP → [RUTA] → [CONTROLADOR] → [SERVEI] → [MODEL] → Base de d
 | Controlador | `controllers/*Controller.js` | Gestiona HTTP: llegeix `req`, respon amb `res` i el codi d'estat |
 | Servei | `services/*Service.js` | Lògica de negoci i accés al model; no coneix `req` ni `res`; llança `AppError` |
 | Model | `models/*.js` | Esquema, validacions i hooks |
+| Middleware d'autenticació | `middleware/auth.js` | Valida l'access token i deixa l'usuari a `req.user` |
 | Middleware d'errors | `middleware/errorHandler.js` | Tradueix qualsevol error a una resposta JSON coherent |
 
 A `index.js` les rutes es munten sota un prefix, i el middleware d'errors va **després** de totes les rutes:
@@ -171,7 +179,11 @@ Errors: sempre el mateix format i sense traces internes.
 | 400 | `INVALID_ID` | Id amb format incorrecte |
 | 400 | `INVALID_QUERY` | Paràmetres de consulta no vàlids (`page`, `limit`, `sort`, `active`...) |
 | 400 | `INVALID_JSON` | Cos de la petició que no és JSON |
-| 401 | `INVALID_CREDENTIALS` | Login amb email o contrasenya incorrectes (vegeu l'API d'autenticació) |
+| 401 | `INVALID_CREDENTIALS` | Login amb email o contrasenya incorrectes |
+| 401 | `UNAUTHORIZED` | Falta l'access token (`Authorization: Bearer ...`) |
+| 401 | `INVALID_TOKEN` | Token manipulat, inventat, d'un altre tipus o d'un usuari desactivat |
+| 401 | `TOKEN_EXPIRED` | Token caducat |
+| 401 | `REFRESH_TOKEN_REUSED` | Refresh token ja usat o revocat: es tanca tota la cadena de sessions |
 | 404 | `NOT_FOUND` | Recurs inexistent |
 | 404 | `ROUTE_NOT_FOUND` | Ruta inexistent |
 | 409 | `DUPLICATE_KEY` | Email o slug duplicat (índex únic) |
@@ -202,22 +214,53 @@ curl -i "http://localhost:3000/api/users?name=anna"
 curl -i "http://localhost:3000/api/users?sort=-createdAt&page=2&limit=5"
 ```
 
-## API d'autenticació (registre i login)
+## API d'autenticació (registre, login i tokens)
 
 Base URL: `http://localhost:3000/api/auth`
 
 | Mètode | Ruta | Descripció | Codis |
 |---|---|---|---|
-| POST | `/api/auth/register` | Registrar un client nou | 201, 409, 422 |
-| POST | `/api/auth/login` | Iniciar sessió i obtenir un token JWT | 200, 401, 422 |
+| POST | `/api/auth/register` | Crear un compte de client nou (no retorna tokens) | 201, 409, 422 |
+| POST | `/api/auth/login` | Iniciar sessió: retorna `accessToken` i `refreshToken` | 200, 401, 422 |
+| GET | `/api/auth/me` | Perfil de l'usuari autenticat (**ruta protegida**) | 200, 401 |
+| POST | `/api/auth/refresh` | Renovar la sessió amb rotació del refresh token | 200, 401, 422 |
+| POST | `/api/auth/logout` | Revocar el refresh token rebut (idempotent) | 204, 422 |
 
-L'enunciat de la Sessió 7 parla de `Usuari.js`, `usuariController`, `usuariServices` i `usuariRoutes`. En aquest projecte
-es **reutilitza** el model `User.js` (ja té `passwordHash`) i els fitxers nous són `authController.js`, `authService.js` i `authRoutes.js`.
+L'enunciat parla de `Usuari.js`, `usuariController`, `usuariServices` i `usuariRoutes`, i d'un model `Tokens.js` i un `tokenService`. En aquest projecte
+es **reutilitza** el model `User.js` (ja té `passwordHash`) i els fitxers són `authController.js`, `authService.js`, `authRoutes.js`,
+`models/RefreshToken.js`, `services/tokenService.js` i `middleware/auth.js`.
 
-### Registre (POST `/api/auth/register`)
+### Com funciona (visió general)
 
-Accepta els mateixos camps que la creació d'usuaris (`name`, `email`, `password`, `phone`, `addresses`) i reutilitza la lògica de `userService`:
-`role=client` i `active=true` els fixa el servidor, i la contrasenya es guarda amb bcrypt (12 rondes). **No retorna cap token**: el
+```
+1. Registre   POST /register   → es crea el compte (sense sessió)
+2. Login      POST /login      → accessToken (15 min) + refreshToken (7 dies)
+3. Ús         GET  /me         → Authorization: Bearer <accessToken>
+4. Renovació  POST /refresh    → refreshToken antic (queda revocat) → parell nou
+5. Tancament  POST /logout     → es revoca el refreshToken
+```
+
+- **Access token**: JWT (HS256) de curta durada (15 minuts, `JWT_ACCESS_EXPIRES_IN`). Payload mínim: `sub` (id de l'usuari) i `role`. S'envia a cada petició protegida a la capçalera `Authorization: Bearer <accessToken>`. Si es roba, només serveix uns minuts.
+- **Refresh token**: JWT de llarga durada (7 dies, `JWT_REFRESH_EXPIRES_IN`), signat amb un **secret diferent** (`JWT_REFRESH_SECRET`) i amb un `jti` únic. Només serveix per demanar tokens nous: no és vàlid com a access token.
+- **Rotació**: cada refresh token **només es pot usar una vegada**. En usar-lo es revoca, es lliura un parell nou i el token antic enllaça amb el nou (`replacedBy`).
+- **Detecció de reutilització**: si algú presenta un refresh token ja usat o revocat, es considera que s'ha robat: es revoca **tota la cadena** (`family`, totes les sessions derivades d'aquell login) i es retorna `401 REFRESH_TOKEN_REUSED`. L'usuari ha de tornar a iniciar sessió.
+- **Emmagatzematge**: a la col·lecció `refreshtokens` només es guarda el **hash SHA-256** del refresh token (`tokenHash`), mai el token. Així, si algú veiés la base de dades, no podria fer-lo servir.
+
+Camps de la col·lecció `refreshtokens`:
+
+| Camp | Descripció |
+|---|---|
+| `userId` | Usuari propietari del token |
+| `tokenHash` | Hash SHA-256 (64 caràcters hexadecimals); índex **únic** |
+| `family` | Identificador de la cadena de rotació d'un mateix login |
+| `expiresAt` | Data de caducitat; índex **TTL** (`expireAfterSeconds: 0`) que esborra el document automàticament |
+| `revokedAt` | Data de revocació (`null` si el token encara és vigent) |
+| `replacedBy` | Token que el substitueix en una rotació |
+
+### 1. Crear un usuari (registre)
+
+Accepta els mateixos camps que la creació d'usuaris (`name`, `email`, `password`, `phone`, `addresses`) i reutilitza la lògica de `userService`.
+`role=client` i `active=true` els fixa el servidor, i la contrasenya (mínim 12 caràcters) es guarda amb bcrypt (12 rondes). **No retorna cap token**: el
 registre no inicia la sessió; cal fer login.
 
 ```bash
@@ -228,7 +271,7 @@ curl -i -X POST "http://localhost:3000/api/auth/register" \
 
 Resposta esperada: `201 Created` amb l'usuari, sense `passwordHash`. Un email repetit retorna `409 DUPLICATE_KEY` i una contrasenya curta `422 VALIDATION_ERROR`.
 
-### Login (POST `/api/auth/login`)
+### 2. Iniciar sessió (login)
 
 ```bash
 curl -i -X POST "http://localhost:3000/api/auth/login" \
@@ -242,29 +285,111 @@ Resposta esperada: `200 OK`:
 {
   "success": true,
   "data": {
-    "token": "<jwt>",
-    "expiresIn": 3600,
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>",
+    "expiresIn": 900,
     "user": { "_id": "...", "name": "Marta Auth", "email": "marta.auth@example.com", "role": "client", "active": true }
   }
 }
 ```
 
-`expiresIn` són els segons de validesa del token. Els errors possibles:
+`expiresIn` són els segons de validesa de l'**access token** (900 = 15 minuts). Errors possibles:
 
 | Cas | Resposta |
 |---|---|
 | Falta `email` o `password` (o no són text) | `422 VALIDATION_ERROR` amb un error per camp a `details` |
 | Email inexistent, contrasenya incorrecta, usuari desactivat o usuari sense hash | `401 INVALID_CREDENTIALS`, sempre amb el mateix missatge |
 
+> Canvi respecte a la Sessió 7: el login retornava `{ token, expiresIn, user }`. Ara retorna `accessToken` i `refreshToken`.
+
+### 3. Ruta protegida (GET `/api/auth/me`)
+
+El middleware `authenticate` (`middleware/auth.js`) llegeix `Authorization: Bearer <accessToken>`, en verifica la signatura i la caducitat, i carrega l'usuari. Per fer proves amb curl es guarden els tokens en variables (cal tenir `jq`):
+
+```bash
+RESP=$(curl -s -X POST "http://localhost:3000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"marta.auth@example.com","password":"ClaveDePrueba-2026"}')
+AT=$(echo "$RESP" | jq -r '.data.accessToken')
+RT=$(echo "$RESP" | jq -r '.data.refreshToken')
+
+curl -i "http://localhost:3000/api/auth/me" -H "Authorization: Bearer $AT"
+```
+
+| Cas | Resposta |
+|---|---|
+| Access token vàlid | `200 OK` amb l'usuari (sense `passwordHash`) |
+| Sense capçalera `Authorization` | `401 UNAUTHORIZED` |
+| Token inventat o manipulat (o un refresh token) | `401 INVALID_TOKEN` |
+| Token caducat | `401 TOKEN_EXPIRED` |
+| Usuari desactivat (`active=false`) | `401` (es consulta la base de dades) |
+
+### 4. Renovar la sessió (POST `/api/auth/refresh`)
+
+```bash
+curl -i -X POST "http://localhost:3000/api/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d "{\"refreshToken\":\"$RT\"}"
+```
+
+Resposta esperada: `200 OK` amb un parell **nou** (`accessToken` i `refreshToken`). El refresh token enviat queda revocat i no es pot tornar a usar.
+
+### 5. Reutilització d'un refresh token (detecció de robatori)
+
+Si es torna a enviar el refresh token antic (`$RT` de l'apartat anterior):
+
+```bash
+curl -i -X POST "http://localhost:3000/api/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d "{\"refreshToken\":\"$RT\"}"
+```
+
+Resposta: `401 REFRESH_TOKEN_REUSED`. A més, **tota la cadena queda revocada**: el refresh token nou que s'havia lliurat també deixa de funcionar i l'usuari ha de tornar a fer login.
+
+### 6. Tancar la sessió (POST `/api/auth/logout`)
+
+```bash
+curl -i -X POST "http://localhost:3000/api/auth/logout" \
+  -H "Content-Type: application/json" \
+  -d "{\"refreshToken\":\"$RT\"}"
+```
+
+Resposta: `204 No Content`. És **idempotent**: repetir-lo també retorna `204`. Després del logout, usar aquest refresh token a `/refresh` retorna `401`. L'access token no es pot revocar i segueix sent vàlid fins que caduca (màxim 15 minuts).
+
 ### Seguretat de l'autenticació
 
 - **Missatge genèric**: tant si l'email no existeix com si la contrasenya és incorrecta o l'usuari està desactivat, la resposta és idèntica, de manera que no es pot esbrinar quins emails estan registrats.
 - **Temps constant**: si l'usuari no existeix, igualment es fa una comparació bcrypt contra un hash fals, perquè el temps de resposta no delati l'existència de l'email.
-- **Sense injecció NoSQL**: `email` i `password` han de ser text; un objecte com `{"$ne": null}` retorna `422` abans de consultar la base de dades.
+- **Sense injecció NoSQL**: `email`, `password` i `refreshToken` han de ser text; un objecte com `{"$ne": null}` retorna `422` abans de consultar la base de dades.
 - **`passwordHash`**: té `select: false`, per això el login el demana explícitament (`.select('+passwordHash')`), i mai surt a la resposta.
-- **Token**: signat amb **HS256** i el secret `JWT_SECRET`; caduca segons `JWT_EXPIRES_IN` (1 hora per defecte). El payload és mínim: `sub` (id de l'usuari) i `role`, sense email ni dades personals.
-- **Secret obligatori**: si `JWT_SECRET` falta o té menys de 32 caràcters, l'API no arrenca.
+- **Dos secrets diferents**: un access token no val com a refresh token ni al revés.
+- **Refresh token a la base de dades només com a hash** (SHA-256), amb índex únic i índex TTL per esborrar els caducats.
+- **Usuari desactivat**: `/refresh` i `/me` consulten la base de dades i el rebutgen encara que el token no hagi caducat.
+- **Secrets obligatoris**: si `JWT_SECRET` o `JWT_REFRESH_SECRET` falten, tenen menys de 32 caràcters o són iguals, l'API no arrenca.
 - L'email es normalitza (espais fora i minúscules) igual que a l'esquema.
+- El refresh token viatja ara al cos JSON per simplicitat. Quan hi hagi frontend (React) es valorarà una cookie `httpOnly`.
+
+### Comprovar-ho a MongoDB
+
+```bash
+docker exec -i ecommerce-mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin ecommerce --quiet' << 'MONGO'
+db.refreshtokens.find({}, {tokenHash: 1, family: 1, revokedAt: 1, replacedBy: 1}).sort({createdAt: -1}).limit(4).forEach(d => print(d.tokenHash.length, d.family.slice(0, 8), d.revokedAt ? "revocat" : "vigent", d.replacedBy ? "amb substitut" : "sense substitut"))
+db.refreshtokens.getIndexes().forEach(i => print(i.name, JSON.stringify(i.key), i.unique ? "unique" : "", i.expireAfterSeconds !== undefined ? "ttl=" + i.expireAfterSeconds : ""))
+MONGO
+```
+
+Resultat esperat: `tokenHash` de 64 caràcters, i els índexs `tokenHash_1` (únic) i `expiresAt_1` (`ttl=0`).
+
+### Validació automàtica amb curl
+
+Amb l'API en marxa, el script `backend/scripts/validate-auth.sh` registra un usuari nou i comprova en ordre: registre, login, errors de login (anti-enumeració i NoSQL), ruta protegida, rotació, reutilització amb revocació de la cadena, validació d'entrada i logout.
+
+```bash
+cd ~/Escritorio/LanderServeis
+bash backend/scripts/validate-auth.sh
+```
+
+Resultat esperat: `RESULTAT: 32 correctes, 0 errors` (cada cas mostra `OK` o `FALLO`). Es pot repetir tantes vegades com es vulgui, perquè cada execució crea un usuari amb un email únic.
 
 ## API de categories
 
@@ -304,11 +429,11 @@ Resposta esperada: `201 Created`. Un `slug` repetit retorna `409 DUPLICATE_KEY` 
 ### Modificar i esborrar
 
 ```bash
-curl -i -X PUT http://localhost:3000/api/categories/<id_categoria> \
+curl -i -X PUT http://localhost:3000/api/categories/\<id_categoria\> \
   -H "Content-Type: application/json" \
   -d '{"description": "Nova descripció"}'
 
-curl -i -X DELETE http://localhost:3000/api/categories/<id_categoria>
+curl -i -X DELETE http://localhost:3000/api/categories/\<id_categoria\>
 ```
 
 El PUT només modifica `name`, `slug`, `description` i `active`. Si la categoria té incidències associades, el DELETE retorna `409 CATEGORY_IN_USE`: en aquest cas cal desactivar-la (`"active": false`).
@@ -318,7 +443,7 @@ El PUT només modifica `name`, `slug`, `description` i `active`. Si la categoria
 Base URL: `http://localhost:3000/api/users`
 
 > **Atenció:** fins que s'implementi el control d'accés per rols (RBAC), aquests endpoints **no estan protegits**
-> (encara que ja existeixi el login amb JWT, cap ruta de `/api/users` comprova el token). Només s'han d'executar
+> (encara que ja existeixi el login amb JWT i el middleware `authenticate`, cap ruta de `/api/users` comprova el token). Només s'han d'executar
 > en local amb dades fictícies i no s'han de desplegar públicament. El registre públic és `/api/auth/register`
 > i la gestió administrativa quedarà protegida.
 
@@ -419,7 +544,7 @@ El llistat d'incidències encara no té paginació.
 ### Obtenir-ne una (GET per id)
 
 ```bash
-curl -i http://localhost:3000/api/incidents/<id_incidencia>
+curl -i http://localhost:3000/api/incidents/\<id_incidencia\>
 ```
 
 Retorna `404` si no existeix i `400` si l'id no té un format vàlid.
@@ -454,26 +579,18 @@ Retorna `204`. Esborra la incidència i, en cascada, les seves assignacions de p
 
 ## Postman
 
-A `backend/postman/` hi ha la col·lecció i l'entorn:
+A `backend/postman/` hi ha la col·lecció i l'entorn, en el format de carpetes de Postman (un fitxer `.yaml` per petició):
 
-- `ecommerce.postman_collection.json`: col·lecció «Ecommerce API», amb les carpetes `Categories`, `Users`, `Incidents` (aquesta última fa de «Products» de l'enunciat) i `Auth`. Té 35 peticions amb comprovacions automàtiques (128 comprovacions).
-- `ecommerce-local.postman_environment.json`: entorn «Ecommerce Local» amb `baseUrl=http://localhost:3000`.
+- `Ecommerce API/`: col·lecció «Ecommerce API», amb les carpetes `Categories`, `Users`, `Incidents` (aquesta última fa de «Products» de l'enunciat) i `Auth`. Té 35 peticions amb comprovacions automàtiques.
+- `Ecommerce Local.environment.yaml`: entorn «Ecommerce Local» amb `baseUrl=http://localhost:3000`.
 
-La carpeta `Auth` té 8 peticions: registre correcte, email duplicat, contrasenya curta, login correcte, contrasenya incorrecta, email inexistent, cos buit i objecte en l'email (injecció NoSQL). S'han d'executar **en ordre**: la primera genera l'email i la contrasenya que usen les altres.
+La carpeta `Auth` té 8 peticions: registre correcte, email duplicat, contrasenya curta, login correcte (comprova `accessToken` i `expiresIn`), contrasenya incorrecta, email inexistent, cos buit i objecte en l'email (injecció NoSQL). S'han d'executar **en ordre**: la primera genera l'email i la contrasenya que usen les altres.
 
-**Importar-les:** Postman → *Import* → seleccionar els dos fitxers → triar l'entorn **Ecommerce Local** (a dalt a la dreta) → *Run collection*.
+**Importar-les:** Postman → *Import* → seleccionar la carpeta `backend/postman` → triar l'entorn **Ecommerce Local** (a dalt a la dreta) → *Run collection*.
 
 Les peticions guarden soles els ids (`categoryId`, `userId`, `incidentId`) i les credencials de prova (`authEmail`, `authPassword`) a l'entorn i generen emails i slugs únics amb `Date.now()`, de manera que la col·lecció es pot executar tantes vegades com es vulgui. Les contrasenyes de prova es generen en cada execució i no hi ha cap secret als fitxers. **No s'ha d'exportar l'entorn des de Postman després d'executar-lo**, perquè s'hi guardarien aquests valors.
 
-Sense obrir Postman, des de la línia d'ordres (amb l'API en marxa):
-
-```bash
-cd ~/Escritorio/LanderServeis/backend
-npx --yes newman run postman/ecommerce.postman_collection.json \
-  -e postman/ecommerce-local.postman_environment.json
-```
-
-Resultat esperat: 35 peticions, 0 errors.
+Les proves de la Sessió 8 (access i refresh token, rotació, reutilització i logout) es fan amb curl i el script `backend/scripts/validate-auth.sh` (vegeu «Validació automàtica amb curl»).
 
 ## Notes de disseny
 
@@ -499,14 +616,21 @@ Resultat esperat: 35 peticions, 0 errors.
   cada endpoint tingui una única responsabilitat.
 - **Registre reutilitzat**: `authService.register` crida `userService.createUser`, així la lògica de
   contrasenyes i camps permesos només existeix en un lloc.
+- **Dos tokens amb secrets diferents**: l'access token és curt (15 min) perquè, si es roba, el dany sigui
+  limitat; el refresh token és llarg (7 dies) però només serveix per renovar i es pot revocar.
+- **Rotació i famílies**: cada refresh token serveix una sola vegada. Si es reutilitza un de ja gastat,
+  es revoca tota la família (`family`), perquè pot ser que algú l'hagi robat.
+- **Hash del refresh token**: a MongoDB només es guarda el SHA-256, no el token. El SHA-256 (i no bcrypt)
+  és suficient perquè el token ja és aleatori i llarg, i permet cercar-lo directament per l'índex únic.
+- **Índex TTL**: MongoDB esborra sol els tokens quan arriba `expiresAt`, sense cap tasca de neteja.
 - **Dades de prova**: encara no hi ha endpoints de professionals. Per provar-los cal crear-los amb un
   script que usi el model `Worker` (veure `src/test-validation.js` com a exemple de com carregar els models).
 
 ## Pendent
 
-- Middleware `auth` que verifiqui el token JWT i `GET /api/auth/me` (opcional).
-- Control d'accés per rols (RBAC); després protegir `/api/users` i la resta de rutes.
+- Control d'accés per rols (RBAC); després protegir `/api/users` i `/api/incidents` amb el middleware `authenticate`.
 - Límit d'intents de login (`express-rate-limit`).
+- Tancar totes les sessions d'un usuari (`logout-all`) i cookie `httpOnly` per al refresh token quan hi hagi frontend.
 - Canvi d'email i de contrasenya amb un flux propi.
 - Endpoints (ruta, controlador i servei) per a `Worker`, `Invoice` i `IncidentWorker`.
 - Paginació al llistat d'incidències.

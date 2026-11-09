@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/me"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      pm.test('Devuelve el usuario', () => pm.expect(pm.response.json().data.email).to.eql(pm.environment.get('s8Email')));
+      pm.test('Sin passwordHash', () => pm.expect(pm.response.text()).to.not.include('passwordHash'));
+    language: text/javascript
+order: 5000

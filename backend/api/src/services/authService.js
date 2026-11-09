@@ -1,17 +1,10 @@
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const userService = require('./userService');
+const tokenService = require('./tokenService');
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const MAX_PASSWORD_BYTES = 72;
-
-// Falla al arrancar si falta el secreto: mejor que descubrirlo en el primer login
-if (!JWT_SECRET || JWT_SECRET.length < 32) {
-  throw new Error('JWT_SECRET no definido o demasiado corto (mínimo 32 caracteres) en el .env');
-}
 
 // Hash falso para comparar cuando el email no existe: así tarda lo mismo
 // y no se puede averiguar qué emails están registrados midiendo el tiempo
@@ -48,15 +41,31 @@ const login = async (data = {}) => {
     throw invalidCredentials();
   }
 
-  // Payload mínimo: sub = id del usuario y role. Nada de email ni datos personales
-  const token = jwt.sign({ role: user.role }, JWT_SECRET, {
-    algorithm: 'HS256',
-    subject: String(user._id),
-    expiresIn: JWT_EXPIRES_IN,
-  });
-  const { iat, exp } = jwt.decode(token);
-
-  return { token, expiresIn: exp - iat, user: user.toJSON() }; // toJSON quita passwordHash
+  // Login nuevo = familia nueva de refresh tokens
+  const { accessToken, refreshToken, expiresIn } = await tokenService.issueTokens(user);
+  return { accessToken, refreshToken, expiresIn, user: user.toJSON() };
 };
 
-module.exports = { register, login };
+// Renueva la sesión: el refresh token se gasta y se entrega uno nuevo (rotación)
+const refresh = async (refreshToken) => {
+  const { tokens, user } = await tokenService.rotateRefreshToken(refreshToken);
+  return {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresIn: tokens.expiresIn,
+    user: user.toJSON(),
+  };
+};
+
+const logout = (refreshToken) => tokenService.revokeRefreshToken(refreshToken);
+
+// Perfil del usuario autenticado. Se consulta la BD: un usuario desactivado ya no entra
+const getMe = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user || !user.active) {
+    throw new AppError(401, 'INVALID_TOKEN', 'Token no válido');
+  }
+  return user;
+};
+
+module.exports = { register, login, refresh, logout, getMe };

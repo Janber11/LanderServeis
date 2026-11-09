@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/refresh"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{\"refreshToken\":\"{{refreshToken}}\"}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('401', () => pm.response.to.have.status(401));
+      pm.test('REFRESH_TOKEN_REUSED', () => pm.expect(pm.response.json().error.code).to.eql('REFRESH_TOKEN_REUSED'));
+      ['s8Email','s8Password','accessToken','refreshToken','refreshTokenOld'].forEach(k => pm.environment.unset(k));
+    language: text/javascript
+order: 12000
