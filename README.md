@@ -577,6 +577,56 @@ curl -i -X DELETE http://localhost:3000/api/incidents/<id_incidencia>
 Retorna `204`. Esborra la incidència i, en cascada, les seves assignacions de professionals
 (`IncidentWorker`), perquè no quedin registres orfes.
 
+### Guia ràpida amb curl
+
+Amb l'API en marxa (`npm run dev`), des d'una segona pestanya del terminal. Requereix `jq`.
+
+**1. Crear un usuari** (contrasenya de 12 caràcters com a mínim). El login és l'email i el password el que s'hi ha posat:
+
+```bash
+curl -s -X POST "http://localhost:3000/api/auth/register" -H "Content-Type: application/json" -d '{"name":"Jan Prova","email":"jan.prova@example.com","password":"ClaveDePrueba-2026"}' | jq
+```
+
+Retorna `201` sense token. Si l'email ja existeix, retorna `409 DUPLICATE_KEY`.
+
+**2. Iniciar sessió** i guardar els tokens en variables (només viuen en aquesta pestanya):
+
+```bash
+RESP=$(curl -s -X POST "http://localhost:3000/api/auth/login" -H "Content-Type: application/json" -d '{"email":"jan.prova@example.com","password":"ClaveDePrueba-2026"}')
+AT=$(echo "$RESP" | jq -r '.data.accessToken')
+RT=$(echo "$RESP" | jq -r '.data.refreshToken')
+echo "$RESP" | jq '{success, expiresIn: .data.expiresIn, user: .data.user.email}'
+```
+
+**3. Ruta protegida** (sense la capçalera retorna `401 UNAUTHORIZED`):
+
+```bash
+curl -s "http://localhost:3000/api/auth/me" -H "Authorization: Bearer $AT" | jq
+```
+
+**4. Renovar la sessió** (rotació: el refresh token antic deixa de servir, per això es sobreescriu `RT`):
+
+```bash
+RESP=$(curl -s -X POST "http://localhost:3000/api/auth/refresh" -H "Content-Type: application/json" -d "{\"refreshToken\":\"$RT\"}")
+AT=$(echo "$RESP" | jq -r '.data.accessToken')
+RT=$(echo "$RESP" | jq -r '.data.refreshToken')
+```
+
+Si es torna a enviar un refresh token ja usat, retorna `401 REFRESH_TOKEN_REUSED` i es tanca tota la cadena de sessions.
+
+**5. Tancar sessió** (retorna `204`; revoca el refresh token, però l'access token continua vàlid fins que caduca, 15 minuts com a màxim):
+
+```bash
+curl -s -o /dev/null -w 'logout: HTTP %{http_code}\n' -X POST "http://localhost:3000/api/auth/logout" -H "Content-Type: application/json" -d "{\"refreshToken\":\"$RT\"}"
+```
+
+**6. Donar de baixa un usuari** (baixa lògica, `active=false`; després el login retorna `401 INVALID_CREDENTIALS`):
+
+```bash
+USER_ID=$(curl -s "http://localhost:3000/api/users?name=jan.prova" | jq -r '.data[0]._id')
+curl -s -o /dev/null -w 'baixa: HTTP %{http_code}\n' -X DELETE "http://localhost:3000/api/users/$USER_ID"
+```
+
 ## Postman
 
 A `backend/postman/` hi ha la col·lecció i l'entorn, en el format de carpetes de Postman (un fitxer `.yaml` per petició):
